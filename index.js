@@ -20,12 +20,16 @@ client.on('interactionCreate', async (interaction) => {
         } else if (interaction.isAutocomplete()) {
             const command = client.commands.get(interaction.commandName);
             if (command?.autocomplete) await command.autocomplete(interaction);
+        } else if (interaction.isModalSubmit()) {
+            await build.handleModalSubmit(interaction);
+        } else if (interaction.isStringSelectMenu()){
+            await build.handleSelectMenu(interaction);
         } else if (interaction.isButton()) {
             await build.handleButton(interaction);
         }
     } catch (error) {
         console.error(error);
-        if (interaction.isRepliable() && !interaction.replied) {
+        if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
             await interaction.reply({ content: '❌ Une erreur est survenue.', ephemeral: true });
         }
     }

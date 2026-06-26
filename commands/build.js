@@ -1,74 +1,36 @@
-const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const {
+    SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
+    ModalBuilder, LabelBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder,
+    TextInputBuilder, TextInputStyle
+} = require('discord.js');
 const db = require('../db');
 const { CLASSES, ROLES, CONTENTS } = require('../constants');
+const { buildEmbed } = require('../utils/embeds');
+
+const OFFENSIVE_FIELDS = [
+    { id: 'proficiency', label: 'Proficiency' },
+    { id: 'determination', label: 'Determination' },
+    { id: 'brutality', label: 'Brutality' },
+    { id: 'luck', label: 'Luck' },
+    { id: 'supremacy', label: 'Supremacy' }
+];
+const DEFENSIVE_FIELDS = [
+    { id: 'vitality', label: 'Vitality' },
+    { id: 'bloodlust', label: 'Bloodlust' },
+    { id: 'survivability', label: 'Survivability' },
+    { id: 'caution', label: 'Caution' }
+];
 
 const data = new SlashCommandBuilder()
     .setName('build')
     .setDescription('Gérer les builds Allods Online')
-    .addSubcommand(sub =>
-        sub.setName('ajouter')
-            .setDescription('Ajouter un nouveau build')
-            .addStringOption(opt =>
-                opt.setName('classe').setDescription('Classe').setRequired(true)
-                    .addChoices(...CLASSES.map(c => ({ name: c, value: c }))))
-            .addStringOption(opt =>
-                opt.setName('role').setDescription('Rôle').setRequired(true)
-                    .addChoices(...ROLES.map(r => ({ name: r, value: r }))))
-            .addStringOption(opt =>
-                opt.setName('contenu').setDescription('Contenu').setRequired(true)
-                    .addChoices(...CONTENTS.map(c => ({ name: c, value: c }))))
-            .addStringOption(opt =>
-                opt.setName('lien').setDescription('Lien du build').setRequired(true))
-            .addStringOption(opt =>
-                opt.setName('titre').setDescription('Titre du build (ex: Full Crit)').setRequired(false))
-            .addIntegerOption(opt => opt.setName('proficiency').setDescription('Stat Proficiency').setRequired(false))
-            .addIntegerOption(opt => opt.setName('determination').setDescription('Stat Determination').setRequired(false))
-            .addIntegerOption(opt => opt.setName('brutality').setDescription('Stat Brutality').setRequired(false))
-            .addIntegerOption(opt => opt.setName('luck').setDescription('Stat Luck').setRequired(false))
-            .addIntegerOption(opt => opt.setName('supremacy').setDescription('Stat Supremacy').setRequired(false))
-            .addIntegerOption(opt => opt.setName('vitality').setDescription('Stat Vitality').setRequired(false))
-            .addIntegerOption(opt => opt.setName('bloodlust').setDescription('Stat Bloodlust').setRequired(false))
-            .addIntegerOption(opt => opt.setName('survivability').setDescription('Stat Survivability').setRequired(false))
-            .addIntegerOption(opt => opt.setName('caution').setDescription('Stat Caution').setRequired(false))
-    )
-    .addSubcommand(sub =>
-        sub.setName('consulter')
-            .setDescription('Consulter les builds existants')
-            .addStringOption(opt =>
-                opt.setName('classe').setDescription('Filtrer par classe').setRequired(false)
-                    .addChoices(...CLASSES.map(c => ({ name: c, value: c }))))
-            .addStringOption(opt =>
-                opt.setName('role').setDescription('Filtrer par rôle').setRequired(false)
-                    .addChoices(...ROLES.map(r => ({ name: r, value: r }))))
-            .addStringOption(opt =>
-                opt.setName('contenu').setDescription('Filtrer par contenu').setRequired(false)
-                    .addChoices(...CONTENTS.map(c => ({ name: c, value: c }))))
-    )
+    .addSubcommand(sub => sub.setName('ajouter').setDescription('Ajouter un nouveau build'))
+    .addSubcommand(sub => sub.setName('consulter').setDescription('Consulter les builds existants'))
     .addSubcommand(sub =>
         sub.setName('modifier')
             .setDescription('Modifier un de tes builds')
             .addStringOption(opt =>
                 opt.setName('selection').setDescription('Quel build modifier').setRequired(true).setAutocomplete(true))
-            .addStringOption(opt =>
-                opt.setName('classe').setDescription('Nouvelle classe').setRequired(false)
-                    .addChoices(...CLASSES.map(c => ({ name: c, value: c }))))
-            .addStringOption(opt =>
-                opt.setName('role').setDescription('Nouveau rôle').setRequired(false)
-                    .addChoices(...ROLES.map(r => ({ name: r, value: r }))))
-            .addStringOption(opt =>
-                opt.setName('contenu').setDescription('Nouveau contenu').setRequired(false)
-                    .addChoices(...CONTENTS.map(c => ({ name: c, value: c }))))
-            .addStringOption(opt => opt.setName('lien').setDescription('Nouveau lien').setRequired(false))
-            .addStringOption(opt => opt.setName('titre').setDescription('Nouveau titre').setRequired(false))
-            .addIntegerOption(opt => opt.setName('proficiency').setDescription('Stat Proficiency').setRequired(false))
-            .addIntegerOption(opt => opt.setName('determination').setDescription('Stat Determination').setRequired(false))
-            .addIntegerOption(opt => opt.setName('brutality').setDescription('Stat Brutality').setRequired(false))
-            .addIntegerOption(opt => opt.setName('luck').setDescription('Stat Luck').setRequired(false))
-            .addIntegerOption(opt => opt.setName('supremacy').setDescription('Stat Supremacy').setRequired(false))
-            .addIntegerOption(opt => opt.setName('vitality').setDescription('Stat Vitality').setRequired(false))
-            .addIntegerOption(opt => opt.setName('bloodlust').setDescription('Stat Bloodlust').setRequired(false))
-            .addIntegerOption(opt => opt.setName('survivability').setDescription('Stat Survivability').setRequired(false))
-            .addIntegerOption(opt => opt.setName('caution').setDescription('Stat Caution').setRequired(false))
     )
     .addSubcommand(sub =>
         sub.setName('supprimer')
@@ -77,86 +39,173 @@ const data = new SlashCommandBuilder()
                 opt.setName('selection').setDescription('Quel build supprimer').setRequired(true).setAutocomplete(true))
     );
 
-function formatBuild(b) {
-    const statsOff = [];
-    if (b.stat_proficiency != null) statsOff.push(`Proficiency: ${b.stat_proficiency}`);
-    if (b.stat_determination != null) statsOff.push(`Determination: ${b.stat_determination}`);
-    if (b.stat_brutality != null) statsOff.push(`Brutality: ${b.stat_brutality}`);
-    if (b.stat_luck != null) statsOff.push(`Luck: ${b.stat_luck}`);
-    if (b.stat_supremacy != null) statsOff.push(`Supremacy: ${b.stat_supremacy}`);
-
-    const statsDef = [];
-    if (b.stat_vitality != null) statsDef.push(`Vitality: ${b.stat_vitality}`);
-    if (b.stat_bloodlust != null) statsDef.push(`Bloodlust: ${b.stat_bloodlust}`);
-    if (b.stat_survivability != null) statsDef.push(`Survivability: ${b.stat_survivability}`);
-    if (b.stat_caution != null) statsDef.push(`Caution: ${b.stat_caution}`);
-
-    let text = `**${b.class} - ${b.role} - ${b.content}**${b.title ? ` (${b.title})` : ''}\n`;
-    text += `🔗 ${b.link}\n`;
-    text += `👤 Par ${b.owner_username}\n`;
-    if (statsOff.length) text += `⚔️ ${statsOff.join(' | ')}\n`;
-    if (statsDef.length) text += `🛡️ ${statsDef.join(' | ')}\n`;
-    return text;
-}
-
 function buildLabel(b) {
     return `${b.class} - ${b.role} - ${b.content}${b.title ? ` (${b.title})` : ''}`.slice(0, 100);
 }
+
+function selectWithDefault(customId, values, current) {
+    return new StringSelectMenuBuilder().setCustomId(customId).addOptions(
+        values.map(v => new StringSelectMenuOptionBuilder().setLabel(v).setValue(v).setDefault(v === current))
+    );
+}
+
+// ---------- /build ajouter & stats communes ----------
+
+function afterSaveComponents(id) {
+    return [new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`addstats_off_${id}`).setLabel('+ Stats offensives').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(`addstats_def_${id}`).setLabel('+ Stats défensives').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(`addstats_done_${id}`).setLabel('Terminer').setStyle(ButtonStyle.Success)
+    )];
+}
+
+function statsModal(customId, title, fields) {
+    const modal = new ModalBuilder().setCustomId(customId).setTitle(title);
+    const labels = fields.map(f =>
+        new LabelBuilder().setLabel(f.label).setTextInputComponent(
+            new TextInputBuilder().setCustomId(f.id).setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder('Nombre, ex: 500')
+        )
+    );
+    modal.addLabelComponents(...labels);
+    return modal;
+}
+
+async function showAjouterModal(interaction) {
+    const modal = new ModalBuilder().setCustomId('ajouter_modal').setTitle('Ajouter un build');
+
+    const classeSelect = new StringSelectMenuBuilder().setCustomId('classe')
+        .addOptions(CLASSES.map(c => new StringSelectMenuOptionBuilder().setLabel(c).setValue(c)));
+    const roleSelect = new StringSelectMenuBuilder().setCustomId('role')
+        .addOptions(ROLES.map(r => new StringSelectMenuOptionBuilder().setLabel(r).setValue(r)));
+    const contenuSelect = new StringSelectMenuBuilder().setCustomId('contenu')
+        .addOptions(CONTENTS.map(c => new StringSelectMenuOptionBuilder().setLabel(c).setValue(c)));
+
+    const titreInput = new TextInputBuilder().setCustomId('titre').setStyle(TextInputStyle.Short)
+        .setRequired(false).setPlaceholder('Ex: Full Crit');
+    const lienInput = new TextInputBuilder().setCustomId('lien').setStyle(TextInputStyle.Short)
+        .setRequired(true).setPlaceholder('https://...');
+
+    modal.addLabelComponents(
+        new LabelBuilder().setLabel('Classe').setStringSelectMenuComponent(classeSelect),
+        new LabelBuilder().setLabel('Rôle').setStringSelectMenuComponent(roleSelect),
+        new LabelBuilder().setLabel('Contenu').setStringSelectMenuComponent(contenuSelect),
+        new LabelBuilder().setLabel('Titre (optionnel)').setTextInputComponent(titreInput),
+        new LabelBuilder().setLabel('Lien du build').setTextInputComponent(lienInput)
+    );
+
+    await interaction.showModal(modal);
+}
+
+// ---------- /build modifier ----------
+
+async function showModifierModal(interaction, build) {
+    const modal = new ModalBuilder().setCustomId(`modifier_modal_${build.id}`).setTitle('Modifier le build');
+
+    const classeSelect = selectWithDefault('classe', CLASSES, build.class);
+    const roleSelect = selectWithDefault('role', ROLES, build.role);
+    const contenuSelect = selectWithDefault('contenu', CONTENTS, build.content);
+
+    const titreInput = new TextInputBuilder().setCustomId('titre').setStyle(TextInputStyle.Short)
+        .setRequired(false).setValue(build.title || '');
+    const lienInput = new TextInputBuilder().setCustomId('lien').setStyle(TextInputStyle.Short)
+        .setRequired(true).setValue(build.link);
+
+    modal.addLabelComponents(
+        new LabelBuilder().setLabel('Classe').setStringSelectMenuComponent(classeSelect),
+        new LabelBuilder().setLabel('Rôle').setStringSelectMenuComponent(roleSelect),
+        new LabelBuilder().setLabel('Contenu').setStringSelectMenuComponent(contenuSelect),
+        new LabelBuilder().setLabel('Titre (optionnel)').setTextInputComponent(titreInput),
+        new LabelBuilder().setLabel('Lien du build').setTextInputComponent(lienInput)
+    );
+
+    await interaction.showModal(modal);
+}
+
+// ---------- /build consulter ----------
+
+function buildFilterRow(customId, allLabel, placeholder, values, selected) {
+    const select = new StringSelectMenuBuilder()
+        .setCustomId(customId)
+        .setPlaceholder(placeholder)
+        .addOptions(
+            new StringSelectMenuOptionBuilder().setLabel(allLabel).setValue('ALL').setDefault(selected === 'ALL'),
+            ...values.map(v => new StringSelectMenuOptionBuilder().setLabel(v).setValue(v).setDefault(selected === v))
+        );
+    return new ActionRowBuilder().addComponents(select);
+}
+
+function consulterRows(filters = { classe: 'ALL', role: 'ALL', contenu: 'ALL' }) {
+    return [
+        buildFilterRow('filter_classe', 'Toutes les classes', 'Classe', CLASSES, filters.classe),
+        buildFilterRow('filter_role', 'Tous les rôles', 'Rôle', ROLES, filters.role),
+        buildFilterRow('filter_contenu', 'Tous les contenus', 'Contenu', CONTENTS, filters.contenu),
+        new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('consulter_search').setLabel('🔍 Rechercher').setStyle(ButtonStyle.Primary)
+        )
+    ];
+}
+
+function getCurrentFilters(message) {
+    const filters = { classe: 'ALL', role: 'ALL', contenu: 'ALL' };
+    for (const row of message.components) {
+        for (const comp of row.components) {
+            if (!comp.options) continue;
+            const value = comp.options.find(o => o.default)?.value || 'ALL';
+            if (comp.customId === 'filter_classe') filters.classe = value;
+            if (comp.customId === 'filter_role') filters.role = value;
+            if (comp.customId === 'filter_contenu') filters.contenu = value;
+        }
+    }
+    return filters;
+}
+
+function queryBuilds(filters) {
+    let query = 'SELECT * FROM builds WHERE 1=1';
+    const params = [];
+    if (filters.classe !== 'ALL') { query += ' AND class = ?'; params.push(filters.classe); }
+    if (filters.role !== 'ALL') { query += ' AND role = ?'; params.push(filters.role); }
+    if (filters.contenu !== 'ALL') { query += ' AND content = ?'; params.push(filters.contenu); }
+    query += ' ORDER BY created_at DESC';
+    return db.prepare(query).all(...params);
+}
+
+function buildResultView(builds, page, filters) {
+    const total = builds.length;
+    const embed = buildEmbed(builds[page], ` • Build ${page + 1}/${total}`);
+
+    const encode = (p) => `consultpage|${p}|${filters.classe}|${filters.role}|${filters.contenu}`;
+    const prevDisabled = page === 0;
+    const nextDisabled = page === total - 1;
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(prevDisabled ? 'noop_prev' : encode(page - 1))
+            .setLabel('◀️ Précédent').setStyle(ButtonStyle.Secondary).setDisabled(prevDisabled),
+        new ButtonBuilder()
+            .setCustomId(nextDisabled ? 'noop_next' : encode(page + 1))
+            .setLabel('Suivant ▶️').setStyle(ButtonStyle.Secondary).setDisabled(nextDisabled)
+    );
+
+    return { embed, row };
+}
+
+// ---------- execute / autocomplete ----------
 
 async function execute(interaction) {
     const sub = interaction.options.getSubcommand();
 
     if (sub === 'ajouter') {
-        const classe = interaction.options.getString('classe');
-        const role = interaction.options.getString('role');
-        const contenu = interaction.options.getString('contenu');
-        const lien = interaction.options.getString('lien');
-        const titre = interaction.options.getString('titre');
-
-        db.prepare(`
-            INSERT INTO builds (
-                owner_id, owner_username, class, role, content, title, link,
-                stat_proficiency, stat_determination, stat_brutality, stat_luck, stat_supremacy,
-                stat_vitality, stat_bloodlust, stat_survivability, stat_caution
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-            interaction.user.id, interaction.user.username, classe, role, contenu, titre, lien,
-            interaction.options.getInteger('proficiency'),
-            interaction.options.getInteger('determination'),
-            interaction.options.getInteger('brutality'),
-            interaction.options.getInteger('luck'),
-            interaction.options.getInteger('supremacy'),
-            interaction.options.getInteger('vitality'),
-            interaction.options.getInteger('bloodlust'),
-            interaction.options.getInteger('survivability'),
-            interaction.options.getInteger('caution')
-        );
-
-        await interaction.reply({
-            content: `✅ Build **${classe} - ${role} - ${contenu}** ajouté avec succès !`,
-            ephemeral: true
-        });
+        await showAjouterModal(interaction);
+        return;
     }
 
     if (sub === 'consulter') {
-        const classe = interaction.options.getString('classe');
-        const role = interaction.options.getString('role');
-        const contenu = interaction.options.getString('contenu');
-
-        let query = 'SELECT * FROM builds WHERE 1=1';
-        const params = [];
-        if (classe) { query += ' AND class = ?'; params.push(classe); }
-        if (role) { query += ' AND role = ?'; params.push(role); }
-        if (contenu) { query += ' AND content = ?'; params.push(contenu); }
-
-        const builds = db.prepare(query).all(...params);
-
-        if (builds.length === 0) {
-            await interaction.reply({ content: 'Aucun build trouvé avec ces critères.', ephemeral: true });
-            return;
-        }
-
-        await interaction.reply({ content: builds.map(formatBuild).join('\n'), ephemeral: true });
+        await interaction.reply({
+            content: 'Choisis tes filtres (ou laisse "Toutes/Tous") puis clique sur Rechercher :',
+            components: consulterRows(),
+            ephemeral: true
+        });
+        return;
     }
 
     if (sub === 'modifier') {
@@ -172,36 +221,8 @@ async function execute(interaction) {
             return;
         }
 
-        const map = {
-            classe: 'class', role: 'role', contenu: 'content', lien: 'link', titre: 'title',
-            proficiency: 'stat_proficiency', determination: 'stat_determination', brutality: 'stat_brutality',
-            luck: 'stat_luck', supremacy: 'stat_supremacy', vitality: 'stat_vitality', bloodlust: 'stat_bloodlust',
-            survivability: 'stat_survivability', caution: 'stat_caution'
-        };
-        const isInt = new Set(['proficiency','determination','brutality','luck','supremacy','vitality','bloodlust','survivability','caution']);
-
-        const fields = [];
-        const params = [];
-        for (const [optName, column] of Object.entries(map)) {
-            const value = isInt.has(optName)
-                ? interaction.options.getInteger(optName)
-                : interaction.options.getString(optName);
-            if (value !== null) {
-                fields.push(`${column} = ?`);
-                params.push(value);
-            }
-        }
-
-        if (fields.length === 0) {
-            await interaction.reply({ content: 'Aucune modification fournie.', ephemeral: true });
-            return;
-        }
-
-        fields.push("updated_at = datetime('now')");
-        params.push(id);
-        db.prepare(`UPDATE builds SET ${fields.join(', ')} WHERE id = ?`).run(...params);
-
-        await interaction.reply({ content: '✅ Build modifié avec succès.', ephemeral: true });
+        await showModifierModal(interaction, existing);
+        return;
     }
 
     if (sub === 'supprimer') {
@@ -223,7 +244,8 @@ async function execute(interaction) {
         );
 
         await interaction.reply({
-            content: `⚠️ Supprimer le build **${buildLabel(existing)}** ?`,
+            content: '⚠️ Confirmer la suppression de ce build ?',
+            embeds: [buildEmbed(existing)],
             components: [row],
             ephemeral: true
         });
@@ -242,8 +264,157 @@ async function autocomplete(interaction) {
     await interaction.respond(filtered);
 }
 
+async function handleModalSubmit(interaction) {
+    if (interaction.customId === 'ajouter_modal') {
+        const classe = interaction.fields.getStringSelectValues('classe')[0];
+        const role = interaction.fields.getStringSelectValues('role')[0];
+        const contenu = interaction.fields.getStringSelectValues('contenu')[0];
+        const titre = interaction.fields.getTextInputValue('titre') || null;
+        const lien = interaction.fields.getTextInputValue('lien');
+
+        const result = db.prepare(`
+            INSERT INTO builds (owner_id, owner_username, class, role, content, title, link)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(interaction.user.id, interaction.user.username, classe, role, contenu, titre, lien);
+
+        const build = db.prepare('SELECT * FROM builds WHERE id = ?').get(result.lastInsertRowid);
+
+        await interaction.reply({
+            content: '✅ Build créé ! Tu peux ajouter des stats maintenant ou plus tard via `/build modifier`.',
+            embeds: [buildEmbed(build)],
+            components: afterSaveComponents(build.id),
+            ephemeral: true
+        });
+        return;
+    }
+
+    const modMatch = interaction.customId.match(/^modifier_modal_(\d+)$/);
+    if (modMatch) {
+        const id = modMatch[1];
+        const existing = db.prepare('SELECT * FROM builds WHERE id = ?').get(id);
+        if (!existing || existing.owner_id !== interaction.user.id) {
+            await interaction.reply({ content: '❌ Action impossible.', ephemeral: true });
+            return;
+        }
+
+        const classe = interaction.fields.getStringSelectValues('classe')[0];
+        const role = interaction.fields.getStringSelectValues('role')[0];
+        const contenu = interaction.fields.getStringSelectValues('contenu')[0];
+        const titre = interaction.fields.getTextInputValue('titre') || null;
+        const lien = interaction.fields.getTextInputValue('lien');
+
+        db.prepare(`
+      UPDATE builds SET class = ?, role = ?, content = ?, title = ?, link = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(classe, role, contenu, titre, lien, id);
+
+        const updated = db.prepare('SELECT * FROM builds WHERE id = ?').get(id);
+
+        await interaction.reply({
+            content: '✅ Build modifié ! Tu peux aussi ajuster les stats ci-dessous.',
+            embeds: [buildEmbed(updated)],
+            components: afterSaveComponents(id),
+            ephemeral: true
+        });
+        return;
+    }
+
+    const offMatch = interaction.customId.match(/^statsoff_modal_(\d+)$/);
+    const defMatch = interaction.customId.match(/^statsdef_modal_(\d+)$/);
+
+    if (offMatch || defMatch) {
+        const id = (offMatch || defMatch)[1];
+        const existing = db.prepare('SELECT * FROM builds WHERE id = ?').get(id);
+        if (!existing || existing.owner_id !== interaction.user.id) {
+            await interaction.reply({ content: '❌ Action impossible.', ephemeral: true });
+            return;
+        }
+
+        const fieldsList = offMatch ? OFFENSIVE_FIELDS : DEFENSIVE_FIELDS;
+        const updates = [];
+        const params = [];
+        for (const f of fieldsList) {
+            const raw = interaction.fields.getTextInputValue(f.id);
+            if (raw !== '') {
+                const num = parseInt(raw, 10);
+                if (!Number.isNaN(num)) {
+                    updates.push(`stat_${f.id} = ?`);
+                    params.push(num);
+                }
+            }
+        }
+
+        if (updates.length) {
+            updates.push("updated_at = datetime('now')");
+            params.push(id);
+            db.prepare(`UPDATE builds SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+        }
+
+        const updated = db.prepare('SELECT * FROM builds WHERE id = ?').get(id);
+        await interaction.reply({
+            content: '✅ Stats mises à jour !',
+            embeds: [buildEmbed(updated)],
+            components: afterSaveComponents(id),
+            ephemeral: true
+        });
+    }
+}
+
+async function handleSelectMenu(interaction) {
+    if (!['filter_classe', 'filter_role', 'filter_contenu'].includes(interaction.customId)) return;
+
+    const filters = getCurrentFilters(interaction.message);
+    const value = interaction.values[0];
+    if (interaction.customId === 'filter_classe') filters.classe = value;
+    if (interaction.customId === 'filter_role') filters.role = value;
+    if (interaction.customId === 'filter_contenu') filters.contenu = value;
+
+    await interaction.update({ components: consulterRows(filters) });
+}
+
 async function handleButton(interaction) {
-    const [action, decision, id] = interaction.customId.split('_');
+    const customId = interaction.customId;
+
+    if (customId === 'noop_prev' || customId === 'noop_next') return;
+
+    if (customId === 'consulter_search') {
+        const filters = getCurrentFilters(interaction.message);
+        const builds = queryBuilds(filters);
+        if (builds.length === 0) {
+            await interaction.update({ content: 'Aucun build trouvé avec ces critères.', embeds: [], components: [] });
+            return;
+        }
+        const { embed, row } = buildResultView(builds, 0, filters);
+        await interaction.update({ content: null, embeds: [embed], components: [row] });
+        return;
+    }
+
+    if (customId.startsWith('consultpage|')) {
+        const [, pageStr, classe, role, contenu] = customId.split('|');
+        const filters = { classe, role, contenu };
+        const builds = queryBuilds(filters);
+        const page = parseInt(pageStr, 10);
+        const { embed, row } = buildResultView(builds, page, filters);
+        await interaction.update({ embeds: [embed], components: [row] });
+        return;
+    }
+
+    if (customId.startsWith('addstats_off_')) {
+        const id = customId.replace('addstats_off_', '');
+        await interaction.showModal(statsModal(`statsoff_modal_${id}`, 'Stats offensives', OFFENSIVE_FIELDS));
+        return;
+    }
+    if (customId.startsWith('addstats_def_')) {
+        const id = customId.replace('addstats_def_', '');
+        await interaction.showModal(statsModal(`statsdef_modal_${id}`, 'Stats défensives', DEFENSIVE_FIELDS));
+        return;
+    }
+    if (customId.startsWith('addstats_done_')) {
+        await interaction.update({ content: '✅ Build finalisé.', components: [] });
+        return;
+    }
+
+    const [action, decision, id] = customId.split('_');
     if (action !== 'delete') return;
 
     if (decision === 'cancel') {
@@ -258,7 +429,7 @@ async function handleButton(interaction) {
     }
 
     db.prepare('DELETE FROM builds WHERE id = ?').run(id);
-    await interaction.update({ content: '🗑️ Build supprimé avec succès.', components: [] });
+    await interaction.update({ content: '🗑️ Build supprimé avec succès.', embeds: [], components: [] });
 }
 
-module.exports = { data, execute, autocomplete, handleButton };
+module.exports = { data, execute, autocomplete, handleButton, handleModalSubmit, handleSelectMenu };
